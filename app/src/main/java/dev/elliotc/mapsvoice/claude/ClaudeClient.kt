@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * isn't shipped for Android, and one POST doesn't justify the dependency.
  */
 class ClaudeClient(
-    private val apiKey: String,
+    private val apiKey: () -> String,
     private val model: String = DEFAULT_MODEL,
     private val systemPrompt: String = DRIVING_SYSTEM_PROMPT,
     private val http: OkHttpClient = defaultHttpClient()
@@ -28,8 +28,9 @@ class ClaudeClient(
 
     suspend fun send(userText: String, conversation: ConversationState): Result =
         withContext(Dispatchers.IO) {
-            if (apiKey.isBlank()) {
-                return@withContext Result.Failure("No API key is configured.")
+            val key = apiKey()
+            if (key.isBlank()) {
+                return@withContext Result.Failure("No API key is set. Open Maps Voice and paste one in.")
             }
 
             val body = JSONObject()
@@ -43,7 +44,7 @@ class ClaudeClient(
 
             val request = Request.Builder()
                 .url(MESSAGES_URL)
-                .addHeader("x-api-key", apiKey)
+                .addHeader("x-api-key", key)
                 .addHeader("anthropic-version", ANTHROPIC_VERSION)
                 .addHeader("content-type", "application/json")
                 .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))

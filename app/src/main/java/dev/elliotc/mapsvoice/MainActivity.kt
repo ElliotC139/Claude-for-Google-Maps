@@ -9,10 +9,13 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import dev.elliotc.mapsvoice.claude.ApiKeyStore
 import dev.elliotc.mapsvoice.overlay.OverlayService
 
 /**
@@ -25,7 +28,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var micButton: Button
     private lateinit var notificationButton: Button
     private lateinit var serviceButton: Button
-    private lateinit var apiKeyWarning: TextView
+    private lateinit var saveKeyButton: Button
+    private lateinit var apiKeyField: EditText
+    private lateinit var apiKeyStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,12 +40,15 @@ class MainActivity : AppCompatActivity() {
         micButton = findViewById(R.id.micButton)
         notificationButton = findViewById(R.id.notificationButton)
         serviceButton = findViewById(R.id.serviceButton)
-        apiKeyWarning = findViewById(R.id.apiKeyWarning)
+        saveKeyButton = findViewById(R.id.saveKeyButton)
+        apiKeyField = findViewById(R.id.apiKeyField)
+        apiKeyStatus = findViewById(R.id.apiKeyStatus)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
         micButton.setOnClickListener { requestMicPermission() }
         notificationButton.setOnClickListener { requestNotificationPermission() }
         serviceButton.setOnClickListener { toggleService() }
+        saveKeyButton.setOnClickListener { saveApiKey() }
     }
 
     override fun onResume() {
@@ -52,13 +60,17 @@ class MainActivity : AppCompatActivity() {
         val hasOverlay = Settings.canDrawOverlays(this)
         val hasMic = isGranted(Manifest.permission.RECORD_AUDIO)
         val hasNotifications = hasNotificationPermission()
-        val hasApiKey = BuildConfig.CLAUDE_API_KEY.isNotBlank()
+        val hasApiKey = ApiKeyStore.isPresent(this)
 
         markGranted(overlayButton, hasOverlay)
         markGranted(micButton, hasMic)
         markGranted(notificationButton, hasNotifications)
 
-        apiKeyWarning.visibility = if (hasApiKey) TextView.GONE else TextView.VISIBLE
+        apiKeyStatus.text = if (hasApiKey) {
+            getString(R.string.key_saved, ApiKeyStore.masked(this))
+        } else {
+            getString(R.string.missing_api_key)
+        }
 
         val running = isServiceRunning()
         serviceButton.setText(if (running) R.string.stop_bubble else R.string.start_bubble)
@@ -68,6 +80,16 @@ class MainActivity : AppCompatActivity() {
     private fun markGranted(button: Button, granted: Boolean) {
         button.setText(if (granted) R.string.granted else R.string.grant)
         button.isEnabled = !granted
+    }
+
+    private fun saveApiKey() {
+        val typed = apiKeyField.text.toString().trim()
+        if (typed.isEmpty()) return
+        ApiKeyStore.set(this, typed)
+        apiKeyField.setText("")
+        apiKeyField.clearFocus()
+        Toast.makeText(this, R.string.save_key, Toast.LENGTH_SHORT).show()
+        refresh()
     }
 
     private fun toggleService() {

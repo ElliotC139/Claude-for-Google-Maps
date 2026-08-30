@@ -24,14 +24,37 @@
             android:textAppearance="?attr/textAppearanceBodyMedium" />
 
         <TextView
-            android:id="@+id/apiKeyWarning"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="24dp"
+            android:text="@string/step_api_key"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:id="@+id/apiKeyStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
             android:text="@string/missing_api_key"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="@color/bubble_error"
-            android:visibility="gone" />
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <EditText
+            android:id="@+id/apiKeyField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:autofillHints="password"
+            android:hint="@string/api_key_hint"
+            android:importantForAutofill="no"
+            android:inputType="textPassword"
+            android:maxLines="1" />
+
+        <Button
+            android:id="@+id/saveKeyButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/save_key" />
 
         <TextView
             android:id="@+id/overlayLabel"

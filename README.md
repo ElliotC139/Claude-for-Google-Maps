@@ -27,32 +27,52 @@ app/src/main/java/dev/elliotc/mapsvoice/
   claude/
     ClaudeClient.kt          Messages API call
     ConversationState.kt     rolling history
+    ApiKeyStore.kt           the key, kept in app-private storage
   MainActivity.kt            permissions setup, first run only
 ```
 
-## Setup
+## Getting it onto your phone
 
-1. Open the project in Android Studio (or have an Android SDK on the command
-   line — `compileSdk 34`, JDK 17).
-2. Copy `local.properties.example` to `local.properties` and add your key:
+You do not need a computer. GitHub builds the APK; you install it from your
+phone's browser.
 
-   ```properties
-   CLAUDE_API_KEY=sk-ant-...
-   ```
+### Build it
 
-   `local.properties` is git-ignored. The key is injected as a `BuildConfig`
-   field at build time. `CLAUDE_API_KEY` in the environment also works.
-3. `./gradlew installDebug`
-4. Open the app and grant all three permissions, then tap **Start bubble**.
+`.github/workflows/build-apk.yml` builds a debug APK on every push to this
+branch and publishes it as the repo's **latest release**. To run it by hand:
+**Actions → Build APK → Run workflow**. It takes about five minutes.
 
-### About the API key
+### Install it
 
-Embedding the key in the app means anyone who gets the APK can extract it —
-`BuildConfig` fields are plain strings in the compiled DEX, and no amount of
-obfuscation changes that. That's acceptable for a build you install on your own
-phone and nowhere else, which is what Phase 1 is. Before this ever ships to
-anyone else, the call needs to go through a small backend that holds the key
-and the app authenticates to that instead.
+Download the APK straight from the release:
+
+```
+https://github.com/ElliotC139/Claude-for-Google-Maps/releases/latest/download/app-debug.apk
+```
+
+Your browser will warn that this file type can harm your device, and Android
+will ask permission to install unknown apps from that browser — both are the
+normal prompts for sideloading, and both have to be accepted.
+
+### Give it your key
+
+Get one at **https://console.anthropic.com/settings/keys** (the API is billed
+separately from a Claude subscription; add credit under Billing first). Open
+Maps Voice, paste the key into the first field, tap **Save key**.
+
+The key is stored in app-private storage on the phone. No other app on a
+non-rooted device can read it, and it survives app updates. It never goes into
+the repo, the build, or the APK.
+
+A build-time key still works if you prefer it — put `CLAUDE_API_KEY=sk-ant-...`
+in `local.properties` locally, or add it as a repository secret and reference
+it in the workflow. The in-app key wins if both are set.
+
+### Building locally instead
+
+If you do have a computer: Android Studio (https://developer.android.com/studio),
+open the project, add `CLAUDE_API_KEY` to `local.properties` or just type the
+key into the app, then Run. JDK 17, `compileSdk 34`.
 
 ## Using it
 

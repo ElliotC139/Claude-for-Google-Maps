@@ -22,9 +22,9 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import dev.elliotc.mapsvoice.BuildConfig
 import dev.elliotc.mapsvoice.MainActivity
 import dev.elliotc.mapsvoice.R
+import dev.elliotc.mapsvoice.claude.ApiKeyStore
 import dev.elliotc.mapsvoice.claude.ClaudeClient
 import dev.elliotc.mapsvoice.claude.ConversationState
 import dev.elliotc.mapsvoice.voice.SpeechListener
@@ -54,7 +54,8 @@ class OverlayService : Service() {
     private lateinit var tts: TextToSpeechManager
 
     private val conversation = ConversationState()
-    private val claude = ClaudeClient(apiKey = BuildConfig.CLAUDE_API_KEY)
+    // Read on each request, so a key pasted in after the bubble started works.
+    private val claude = ClaudeClient(apiKey = { ApiKeyStore.get(this) })
 
     private var busy = false
     private var longPressPending: Runnable? = null
