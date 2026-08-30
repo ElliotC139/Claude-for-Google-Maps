@@ -1,0 +1,4 @@
+# Copy to local.properties (git-ignored) and fill in.
+# sdk.dir is written automatically by Android Studio.
+sdk.dir=/path/to/Android/sdk
+CLAUDE_API_KEY=sk-ant-...

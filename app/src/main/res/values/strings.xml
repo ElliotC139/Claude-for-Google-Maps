@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Maps Voice</string>
+
+    <string name="setup_title">Maps Voice — setup</string>
+    <string name="setup_intro">Three things before the bubble can run. Test it stationary first — never set this up while driving.</string>
+
+    <string name="step_overlay">1. Allow drawing over other apps</string>
+    <string name="step_mic">2. Allow microphone access</string>
+    <string name="step_notifications">3. Allow notifications (for the ongoing-service badge)</string>
+
+    <string name="grant">Grant</string>
+    <string name="granted">Granted</string>
+
+    <string name="start_bubble">Start bubble</string>
+    <string name="stop_bubble">Stop bubble</string>
+
+    <string name="missing_api_key">No CLAUDE_API_KEY in local.properties — add it and rebuild.</string>
+    <string name="usage_hint">Long-press the bubble to talk. Release and wait for the spoken reply.</string>
+
+    <string name="notification_channel_name">Maps Voice</string>
+    <string name="notification_title">Maps Voice is listening for a long-press</string>
+    <string name="notification_text">Tap to open settings.</string>
+</resources>

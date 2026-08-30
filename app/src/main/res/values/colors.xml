@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bubble states. Colour is the only status signal — nothing to read while driving. -->
+    <color name="bubble_idle">#FF3B3B3F</color>
+    <color name="bubble_listening">#FF2E7DFF</color>
+    <color name="bubble_thinking">#FFE0A020</color>
+    <color name="bubble_speaking">#FF2FA84F</color>
+    <color name="bubble_error">#FFD5433C</color>
+    <color name="ic_launcher_background">#FF1F1F23</color>
+</resources>
