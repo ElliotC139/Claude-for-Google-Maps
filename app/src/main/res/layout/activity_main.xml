@@ -234,6 +234,32 @@
             android:text="@string/wake_word_battery_note"
             android:textAppearance="?attr/textAppearanceBodySmall" />
 
+        <CheckBox
+            android:id="@+id/onlyDuringMapsSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/only_during_maps" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/only_during_maps_help"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <TextView
+            android:id="@+id/usageAccessStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <Button
+            android:id="@+id/usageAccessButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/grant_usage_access" />
+
         <Button
             android:id="@+id/saveWakeWordButton"
             android:layout_width="wrap_content"

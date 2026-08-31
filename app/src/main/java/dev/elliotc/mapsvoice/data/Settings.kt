@@ -79,6 +79,14 @@ object Settings {
         prefs(context).edit().putString(PREF_WAKE_PHRASES, text.trim()).apply()
     }
 
+    /** Gate the wake word on Google Maps being on screen, to save battery. */
+    fun onlyDuringMaps(context: Context): Boolean =
+        prefs(context).getBoolean(PREF_ONLY_MAPS, true)
+
+    fun setOnlyDuringMaps(context: Context, only: Boolean) {
+        prefs(context).edit().putBoolean(PREF_ONLY_MAPS, only).apply()
+    }
+
     fun wakePhrases(context: Context): List<String> =
         wakePhrasesText(context).split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -92,4 +100,5 @@ object Settings {
     private const val PREF_CONTEXT = "personal_context"
     private const val PREF_WAKE_ENABLED = "wake_word_enabled"
     private const val PREF_WAKE_PHRASES = "wake_word_phrases"
+    private const val PREF_ONLY_MAPS = "wake_word_only_during_maps"
 }

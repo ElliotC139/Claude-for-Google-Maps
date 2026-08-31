@@ -41,6 +41,12 @@
     <string name="wake_phrases_help">Any of these, separated by commas, will start a session. The offline recogniser has no \"claude\" in its vocabulary, so it usually hears \"cloud\" or \"clawed\" — keeping those spellings is what makes it fire reliably.</string>
     <string name="wake_word_enable">Enable wake word</string>
     <string name="save_wake_word">Save</string>
+    <string name="only_during_maps">Only listen while Google Maps is open</string>
+    <string name="only_during_maps_help">Keeps the recogniser off when you are not navigating, which is where nearly all of the battery cost is. Carries on for three minutes after you leave Maps, so switching to music doesn\'t stop it.</string>
+    <string name="grant_usage_access">Grant usage access</string>
+    <string name="usage_access_needed">Needs usage access to see when Maps is open.</string>
+    <string name="usage_access_granted">Usage access granted.</string>
+
     <string name="wake_word_battery_note">Listening for a wake word keeps the microphone open and uses noticeably more battery than the long-press. Turn it off when you are not driving.</string>
 
     <string name="history_title">Conversations</string>

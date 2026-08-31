@@ -32,6 +32,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
   data/
     Settings.kt              bubble size, position, personal context
     ConversationLog.kt       durable transcript on disk
+    ForegroundAppWatcher.kt  is Maps on screen?
   HistoryActivity.kt         reads the transcript back
   MainActivity.kt            permissions setup, first run only
 ```
@@ -180,8 +181,23 @@ for the length of a question and restarts it afterwards. That handoff is why
 the wake word can't fire while Claude is already listening or speaking — tap
 the bubble to interrupt instead.
 
-Listening continuously costs noticeably more battery than the long-press and
-keeps the mic indicator lit. Turn it off when you're not driving.
+### Only while Maps is open
+
+On by default, and the reason the wake word is affordable at all: the
+recogniser only runs while Google Maps (or Android Auto's projected Maps) is on
+screen, plus a three-minute grace period so switching to music doesn't stop it.
+
+This needs **usage access** — Android has no ordinary permission for reading
+which app is in front, and the only alternative is an accessibility service,
+which is far more invasive. Grant it from the button in the app; it opens a
+system settings screen rather than a runtime prompt.
+
+Until it is granted the gate is treated as open, so the wake word still works —
+silently never listening would look like a broken feature rather than a missing
+permission.
+
+Even so, listening keeps the mic indicator lit and costs more battery than the
+long-press. Turn it off when you're not driving.
 
 ## Not in this phase
 

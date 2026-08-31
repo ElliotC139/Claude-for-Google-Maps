@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import dev.elliotc.mapsvoice.claude.ApiKeyStore
+import dev.elliotc.mapsvoice.data.ForegroundAppWatcher
 import dev.elliotc.mapsvoice.data.Settings as AppSettings
 import dev.elliotc.mapsvoice.overlay.OverlayService
 
@@ -39,6 +40,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sizeLabel: TextView
     private lateinit var wakePhrasesField: EditText
     private lateinit var wakeWordSwitch: CheckBox
+    private lateinit var onlyDuringMapsSwitch: CheckBox
+    private lateinit var usageAccessStatus: TextView
+    private lateinit var usageAccessButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +60,9 @@ class MainActivity : AppCompatActivity() {
         sizeLabel = findViewById(R.id.sizeLabel)
         wakePhrasesField = findViewById(R.id.wakePhrasesField)
         wakeWordSwitch = findViewById(R.id.wakeWordSwitch)
+        onlyDuringMapsSwitch = findViewById(R.id.onlyDuringMapsSwitch)
+        usageAccessStatus = findViewById(R.id.usageAccessStatus)
+        usageAccessButton = findViewById(R.id.usageAccessButton)
         apiKeyStatus = findViewById(R.id.apiKeyStatus)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
@@ -95,6 +102,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         wakeWordSwitch.isChecked = AppSettings.wakeWordEnabled(this)
+        onlyDuringMapsSwitch.isChecked = AppSettings.onlyDuringMaps(this)
+
+        val hasUsageAccess = ForegroundAppWatcher.hasUsageAccess(this)
+        usageAccessStatus.setText(
+            if (hasUsageAccess) R.string.usage_access_granted else R.string.usage_access_needed
+        )
+        usageAccessButton.isEnabled = !hasUsageAccess
+
         if (!wakePhrasesField.hasFocus()) {
             wakePhrasesField.setText(AppSettings.wakePhrasesText(this))
         }
@@ -132,11 +147,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setUpWakeWord() {
         findViewById<Button>(R.id.saveWakeWordButton).setOnClickListener { saveWakeWord() }
+        usageAccessButton.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
     }
 
     private fun saveWakeWord() {
         AppSettings.setWakePhrasesText(this, wakePhrasesField.text.toString())
         AppSettings.setWakeWordEnabled(this, wakeWordSwitch.isChecked)
+        AppSettings.setOnlyDuringMaps(this, onlyDuringMapsSwitch.isChecked)
         wakePhrasesField.clearFocus()
         Toast.makeText(this, R.string.context_saved, Toast.LENGTH_SHORT).show()
         pushSettingsToBubble()

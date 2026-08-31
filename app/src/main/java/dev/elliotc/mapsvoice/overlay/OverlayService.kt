@@ -30,6 +30,7 @@ import dev.elliotc.mapsvoice.claude.ApiKeyStore
 import dev.elliotc.mapsvoice.claude.ClaudeClient
 import dev.elliotc.mapsvoice.claude.ConversationState
 import dev.elliotc.mapsvoice.data.ConversationLog
+import dev.elliotc.mapsvoice.data.ForegroundAppWatcher
 import dev.elliotc.mapsvoice.data.Settings
 import dev.elliotc.mapsvoice.voice.SpeechListener
 import dev.elliotc.mapsvoice.voice.TextToSpeechManager
@@ -70,6 +71,9 @@ class OverlayService : Service() {
         personalContext = { Settings.personalContext(this) }
     )
 
+    private val foregroundApps = ForegroundAppWatcher(this)
+    private var mapsPoll: Runnable? = null
+
     private var busy = false
     private var longPressPending: Runnable? = null
     private var requestJob: Job? = null
@@ -98,6 +102,7 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         cancelLongPress()
+        scheduleMapsPoll(false)
         scope.cancel()
         speech.release()
         tts.release()
@@ -263,8 +268,10 @@ class OverlayService : Service() {
     private fun applyWakeWord() {
         if (!::wakeWord.isInitialized) return
 
-        val enabled = Settings.wakeWordEnabled(this) && !busy
-        if (!enabled) {
+        val wanted = Settings.wakeWordEnabled(this) && !busy
+        scheduleMapsPoll(wanted && gatedOnMaps())
+
+        if (!wanted || !mapsConditionMet()) {
             wakeWord.stop()
             return
         }
@@ -278,6 +285,37 @@ class OverlayService : Service() {
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         )
+    }
+
+    /** Whether the Maps gate applies: on, and usable (permission granted). */
+    private fun gatedOnMaps(): Boolean =
+        Settings.onlyDuringMaps(this) && ForegroundAppWatcher.hasUsageAccess(this)
+
+    /**
+     * Without usage access the gate can't be evaluated, so it is treated as
+     * open — silently never listening would look like a broken wake word.
+     */
+    private fun mapsConditionMet(): Boolean =
+        !gatedOnMaps() || foregroundApps.isTargetActive()
+
+    /**
+     * Re-checks whether Maps is on screen. Only runs while the gate is doing
+     * something; the poll is far cheaper than the recogniser it controls.
+     */
+    private fun scheduleMapsPoll(active: Boolean) {
+        mapsPoll?.let { mainHandler.removeCallbacks(it) }
+        mapsPoll = null
+        if (!active) return
+
+        val runnable = object : Runnable {
+            override fun run() {
+                val shouldListen = mapsConditionMet()
+                if (shouldListen != wakeWord.isRunning) applyWakeWord()
+                mainHandler.postDelayed(this, MAPS_POLL_MILLIS)
+            }
+        }
+        mapsPoll = runnable
+        mainHandler.postDelayed(runnable, MAPS_POLL_MILLIS)
     }
 
     private val speechCallbacks = object : SpeechListener.Callbacks {
@@ -360,6 +398,7 @@ class OverlayService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val BUBBLE_MARGIN_DP = 12f
         private const val ACTION_REFRESH = "dev.elliotc.mapsvoice.REFRESH"
+        private const val MAPS_POLL_MILLIS = 5_000L
 
         fun canDrawOverlay(context: Context): Boolean = AndroidSettings.canDrawOverlays(context)
 
