@@ -26,8 +26,12 @@ app/src/main/java/dev/elliotc/mapsvoice/
     TextToSpeechManager.kt   TextToSpeech wrapper
   claude/
     ClaudeClient.kt          Messages API call
-    ConversationState.kt     rolling history
+    ConversationState.kt     rolling context sent to Claude
     ApiKeyStore.kt           the key, kept in app-private storage
+  data/
+    Settings.kt              bubble size, position, personal context
+    ConversationLog.kt       durable transcript on disk
+  HistoryActivity.kt         reads the transcript back
   MainActivity.kt            permissions setup, first run only
 ```
 
@@ -89,6 +93,10 @@ key into the app, then Run. JDK 17, `compileSdk 34`.
 
 - **Long-press the bubble** (~half a second, with a haptic tick) to start
   listening. You don't need to look at it.
+- **Tap it** to cancel — stops the mic, drops an in-flight request, and cuts a
+  reply off mid-sentence. A tap while idle does nothing, so a knock can't
+  trigger anything.
+- **Drag it** anywhere; the position is remembered.
 - **Speak, then stop.** The recogniser ends the utterance on ~1.5s of silence;
   there is nothing to release.
 - **The reply is spoken.** The system prompt keeps answers to one or two
@@ -128,14 +136,27 @@ after ten minutes of silence.
 - **TTS uses `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE`**, so it routes the same
   way Maps' own guidance does on a car stereo.
 
+## Settings
+
+On the setup screen, below the permissions:
+
+- **Bubble size** — 44 to 120 dp. Takes effect immediately on a running bubble.
+- **Reset position** — puts it back in the bottom-left corner (restarts the
+  bubble, since position is read when the window is created).
+- **About you** — free text sent to Claude with every question. Paste an export
+  of your Claude memory here: the API has no access to the memories held by
+  your Claude account, so this is the manual equivalent. Capped at 4000
+  characters, because it rides along with every question and is billed each time.
+- **View conversations** — every exchange, newest first, with share and clear.
+  Stored as JSON lines in app-private storage, trimmed to the newest 1000 once
+  the file passes 1 MB.
+
 ## Not in this phase
 
-Phase 2 (driving-safe) — drag and position memory, a cancel gesture to stop a
-reply mid-sentence, audio-focus handling so Claude and Maps don't talk over
-each other, and silence-timeout tuning.
+Phase 2 — audio-focus handling, so Claude and Maps don't talk over each other,
+and silence-timeout tuning.
 
-Phase 3 (quality of life) — wake word instead of long-press, whole-trip
-conversation memory.
+Phase 3 — a wake word instead of the long-press.
 
 Phase 4 — Android Auto, which is the real "designed for driving" surface but
 needs Google's distraction-guidelines review.

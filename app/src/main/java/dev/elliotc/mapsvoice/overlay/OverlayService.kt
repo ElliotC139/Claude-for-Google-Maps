@@ -14,8 +14,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.provider.Settings
+import android.provider.Settings as AndroidSettings
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -27,21 +28,26 @@ import dev.elliotc.mapsvoice.R
 import dev.elliotc.mapsvoice.claude.ApiKeyStore
 import dev.elliotc.mapsvoice.claude.ClaudeClient
 import dev.elliotc.mapsvoice.claude.ConversationState
+import dev.elliotc.mapsvoice.data.ConversationLog
+import dev.elliotc.mapsvoice.data.Settings
 import dev.elliotc.mapsvoice.voice.SpeechListener
 import dev.elliotc.mapsvoice.voice.TextToSpeechManager
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Foreground service that owns the bubble and drives the whole loop:
+ * Foreground service that owns the bubble and drives the loop:
  * long-press → listen → ask Claude → speak the reply.
  *
- * Phase 1 deliberately stops there. The bubble does not move, there is no wake
- * word, and it knows nothing about what Google Maps is showing.
+ * Touch vocabulary, chosen so none of it needs looking at:
+ * - **long-press** starts a session
+ * - **tap** cancels whatever is happening
+ * - **drag** moves the bubble, and the position is remembered
  */
 class OverlayService : Service() {
 
@@ -50,18 +56,20 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private lateinit var bubble: BubbleView
+    private lateinit var params: WindowManager.LayoutParams
     private lateinit var speech: SpeechListener
     private lateinit var tts: TextToSpeechManager
 
     private val conversation = ConversationState()
-    // Read on each request, so a key pasted in after the bubble started works.
     private val claude = ClaudeClient(
         apiKey = { ApiKeyStore.get(this) },
-        workspaceId = { ApiKeyStore.workspaceId(this) }
+        workspaceId = { ApiKeyStore.workspaceId(this) },
+        personalContext = { Settings.personalContext(this) }
     )
 
     private var busy = false
     private var longPressPending: Runnable? = null
+    private var requestJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -75,7 +83,10 @@ class OverlayService : Service() {
         addBubble()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_REFRESH) applyAppearance()
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         cancelLongPress()
@@ -94,10 +105,8 @@ class OverlayService : Service() {
     private fun addBubble() {
         bubble = BubbleView(this)
 
-        val size = (BUBBLE_SIZE_DP * resources.displayMetrics.density).toInt()
-        val margin = (BUBBLE_MARGIN_DP * resources.displayMetrics.density).toInt()
-
-        val params = WindowManager.LayoutParams(
+        val size = sizePx()
+        params = WindowManager.LayoutParams(
             size,
             size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -105,41 +114,88 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
-            // Bottom-left: clear of the next-turn banner at the top and of the
-            // ETA sheet's controls on the right.
-            gravity = Gravity.BOTTOM or Gravity.START
-            x = margin
-            y = margin * 4
+            gravity = Gravity.TOP or Gravity.START
         }
 
-        bubble.setOnTouchListener(longPressTouchListener)
+        val savedX = Settings.positionX(this)
+        val savedY = Settings.positionY(this)
+        if (savedX == Settings.UNSET || savedY == Settings.UNSET) {
+            // Bottom-left by default: clear of the next-turn banner at the top
+            // of Maps and of the ETA sheet's controls on the right.
+            params.x = dp(BUBBLE_MARGIN_DP)
+            params.y = screenHeight() - size - dp(BUBBLE_MARGIN_DP * 4)
+        } else {
+            params.x = savedX
+            params.y = savedY
+        }
+        clampToScreen()
+
+        bubble.setOnTouchListener(touchListener)
         windowManager.addView(bubble, params)
     }
 
-    private val longPressTouchListener = object : View.OnTouchListener {
-        private var downX = 0f
-        private var downY = 0f
-        // Lazy: a Service has no base context while its fields are initialised.
+    /** Re-reads size from settings and keeps the bubble on screen. */
+    private fun applyAppearance() {
+        if (!::bubble.isInitialized || !bubble.isAttachedToWindow) return
+        val size = sizePx()
+        params.width = size
+        params.height = size
+        clampToScreen()
+        windowManager.updateViewLayout(bubble, params)
+    }
+
+    private val touchListener = object : View.OnTouchListener {
+        private var downRawX = 0f
+        private var downRawY = 0f
+        private var startX = 0
+        private var startY = 0
+        private var dragging = false
+        private var longPressFired = false
+
         private val slop by lazy { ViewConfiguration.get(this@OverlayService).scaledTouchSlop }
 
         override fun onTouch(view: View, event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = event.rawX
-                    downY = event.rawY
-                    scheduleLongPress()
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    dragging = false
+                    longPressFired = false
+                    scheduleLongPress { longPressFired = true }
                     return true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    if (abs(event.rawX - downX) > slop || abs(event.rawY - downY) > slop) {
+                    val dx = event.rawX - downRawX
+                    val dy = event.rawY - downRawY
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) {
+                        // A drag was intended, not a press.
+                        dragging = true
                         cancelLongPress()
+                    }
+                    if (dragging && !longPressFired) {
+                        params.x = startX + dx.toInt()
+                        params.y = startY + dy.toInt()
+                        clampToScreen()
+                        windowManager.updateViewLayout(bubble, params)
                     }
                     return true
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     cancelLongPress()
+                    when {
+                        dragging -> Settings.setPosition(
+                            this@OverlayService,
+                            params.x,
+                            params.y
+                        )
+                        // A tap is the cancel gesture — but only when there is
+                        // something to cancel, so a knock while parked is inert.
+                        !longPressFired && busy -> cancelSession()
+                    }
                     return true
                 }
             }
@@ -147,11 +203,12 @@ class OverlayService : Service() {
         }
     }
 
-    private fun scheduleLongPress() {
+    private fun scheduleLongPress(onFired: () -> Unit) {
         cancelLongPress()
         val runnable = Runnable {
             longPressPending = null
-            bubble.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            onFired()
+            bubble.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             beginSession()
         }
         longPressPending = runnable
@@ -163,6 +220,20 @@ class OverlayService : Service() {
         longPressPending = null
     }
 
+    private fun clampToScreen() {
+        val size = params.width
+        params.x = params.x.coerceIn(0, (screenWidth() - size).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (screenHeight() - size).coerceAtLeast(0))
+    }
+
+    private fun sizePx() = dp(Settings.sizeDp(this).toFloat())
+
+    private fun dp(value: Float) = (value * resources.displayMetrics.density).toInt()
+
+    private fun screenWidth() = resources.displayMetrics.widthPixels
+
+    private fun screenHeight() = resources.displayMetrics.heightPixels
+
     // --- The loop --------------------------------------------------------
 
     private fun beginSession() {
@@ -173,6 +244,17 @@ class OverlayService : Service() {
         speech.start(speechCallbacks)
     }
 
+    /** Tap-to-cancel: drop the mic, the in-flight request, and the speech. */
+    private fun cancelSession() {
+        requestJob?.cancel()
+        requestJob = null
+        speech.cancel()
+        tts.stop()
+        bubble.state = BubbleView.State.IDLE
+        busy = false
+        bubble.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+    }
+
     private val speechCallbacks = object : SpeechListener.Callbacks {
         override fun onListening() {
             bubble.state = BubbleView.State.LISTENING
@@ -180,16 +262,18 @@ class OverlayService : Service() {
 
         override fun onTranscript(text: String) {
             bubble.state = BubbleView.State.THINKING
-            scope.launch {
+            requestJob = scope.launch {
                 when (val result = claude.send(text, conversation)) {
                     is ClaudeClient.Result.Reply -> {
                         conversation.commit(text, result.text)
+                        ConversationLog.append(this@OverlayService, text, result.text)
                         speakThenIdle(result.text, BubbleView.State.SPEAKING)
                     }
 
                     is ClaudeClient.Result.Failure ->
                         speakThenIdle(result.message, BubbleView.State.ERROR)
                 }
+                requestJob = null
             }
         }
 
@@ -248,10 +332,10 @@ class OverlayService : Service() {
     companion object {
         private const val CHANNEL_ID = "maps_voice_overlay"
         private const val NOTIFICATION_ID = 1
-        private const val BUBBLE_SIZE_DP = 64f
         private const val BUBBLE_MARGIN_DP = 12f
+        private const val ACTION_REFRESH = "dev.elliotc.mapsvoice.REFRESH"
 
-        fun canDrawOverlay(context: Context): Boolean = Settings.canDrawOverlays(context)
+        fun canDrawOverlay(context: Context): Boolean = AndroidSettings.canDrawOverlays(context)
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, OverlayService::class.java))
@@ -259,6 +343,13 @@ class OverlayService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, OverlayService::class.java))
+        }
+
+        /** Push a settings change to a bubble that is already on screen. */
+        fun refresh(context: Context) {
+            context.startService(
+                Intent(context, OverlayService::class.java).setAction(ACTION_REFRESH)
+            )
         }
     }
 }

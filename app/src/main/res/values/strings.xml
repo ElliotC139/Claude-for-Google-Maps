@@ -23,7 +23,24 @@
     <string name="stop_bubble">Stop bubble</string>
 
     <string name="missing_api_key">Get one at console.anthropic.com — it stays on this phone.</string>
-    <string name="usage_hint">Long-press the bubble to talk. Release and wait for the spoken reply.</string>
+    <string name="usage_hint">Long-press the bubble to talk, tap it to cancel, drag it to move it.</string>
+
+    <string name="section_bubble">Bubble</string>
+    <string name="bubble_size">Size: %1$d dp</string>
+    <string name="reset_position">Reset position</string>
+
+    <string name="section_about_you">About you</string>
+    <string name="about_you_help">Sent to Claude with every question. Paste an export of your Claude memory here — the API can\'t read it on its own.</string>
+    <string name="about_you_hint">e.g. I drive an electric car, I\'m usually heading to Bristol…</string>
+    <string name="save_context">Save</string>
+    <string name="context_saved">Saved</string>
+
+    <string name="history_title">Conversations</string>
+    <string name="view_history">View conversations</string>
+    <string name="share_history">Share</string>
+    <string name="clear_history">Clear</string>
+    <string name="clear_history_confirm">Delete every saved conversation? This can\'t be undone.</string>
+    <string name="history_empty">Nothing yet. Long-press the bubble and ask something.</string>
 
     <string name="notification_channel_name">Maps Voice</string>
     <string name="notification_title">Maps Voice is listening for a long-press</string>

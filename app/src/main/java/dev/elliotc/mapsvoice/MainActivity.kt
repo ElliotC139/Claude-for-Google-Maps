@@ -10,12 +10,14 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import dev.elliotc.mapsvoice.claude.ApiKeyStore
+import dev.elliotc.mapsvoice.data.Settings as AppSettings
 import dev.elliotc.mapsvoice.overlay.OverlayService
 
 /**
@@ -31,6 +33,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var saveKeyButton: Button
     private lateinit var apiKeyField: EditText
     private lateinit var workspaceField: EditText
+    private lateinit var contextField: EditText
+    private lateinit var sizeSlider: SeekBar
+    private lateinit var sizeLabel: TextView
     private lateinit var apiKeyStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +49,9 @@ class MainActivity : AppCompatActivity() {
         saveKeyButton = findViewById(R.id.saveKeyButton)
         apiKeyField = findViewById(R.id.apiKeyField)
         workspaceField = findViewById(R.id.workspaceField)
+        contextField = findViewById(R.id.contextField)
+        sizeSlider = findViewById(R.id.sizeSlider)
+        sizeLabel = findViewById(R.id.sizeLabel)
         apiKeyStatus = findViewById(R.id.apiKeyStatus)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
@@ -51,6 +59,12 @@ class MainActivity : AppCompatActivity() {
         notificationButton.setOnClickListener { requestNotificationPermission() }
         serviceButton.setOnClickListener { toggleService() }
         saveKeyButton.setOnClickListener { saveCredentials() }
+        findViewById<Button>(R.id.saveContextButton).setOnClickListener { savePersonalContext() }
+        findViewById<Button>(R.id.historyButton).setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        }
+        findViewById<Button>(R.id.resetPositionButton).setOnClickListener { resetBubblePosition() }
+        setUpSizeSlider()
     }
 
     override fun onResume() {
@@ -71,6 +85,9 @@ class MainActivity : AppCompatActivity() {
         if (!workspaceField.hasFocus()) {
             workspaceField.setText(ApiKeyStore.workspaceId(this))
         }
+        if (!contextField.hasFocus()) {
+            contextField.setText(AppSettings.personalContext(this))
+        }
 
         apiKeyStatus.text = if (hasApiKey) {
             getString(R.string.key_saved, ApiKeyStore.masked(this))
@@ -81,6 +98,51 @@ class MainActivity : AppCompatActivity() {
         val running = isServiceRunning()
         serviceButton.setText(if (running) R.string.stop_bubble else R.string.start_bubble)
         serviceButton.isEnabled = running || (hasOverlay && hasMic && hasApiKey)
+    }
+
+    private fun setUpSizeSlider() {
+        val range = AppSettings.MAX_SIZE_DP - AppSettings.MIN_SIZE_DP
+        sizeSlider.max = range
+        sizeSlider.progress = AppSettings.sizeDp(this) - AppSettings.MIN_SIZE_DP
+        showSize(AppSettings.sizeDp(this))
+
+        sizeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
+                showSize(AppSettings.MIN_SIZE_DP + progress)
+            }
+
+            override fun onStartTrackingTouch(bar: SeekBar) = Unit
+
+            override fun onStopTrackingTouch(bar: SeekBar) {
+                AppSettings.setSizeDp(this@MainActivity, AppSettings.MIN_SIZE_DP + bar.progress)
+                pushSettingsToBubble()
+            }
+        })
+    }
+
+    private fun showSize(dp: Int) {
+        sizeLabel.text = getString(R.string.bubble_size, dp)
+    }
+
+    private fun resetBubblePosition() {
+        AppSettings.clearPosition(this)
+        // The bubble reads its position when it is created, so a running one
+        // has to be restarted to land back in the default corner.
+        if (isServiceRunning()) {
+            OverlayService.stop(this)
+            serviceButton.postDelayed({ OverlayService.start(this); refresh() }, 300)
+        }
+    }
+
+    private fun savePersonalContext() {
+        AppSettings.setPersonalContext(this, contextField.text.toString())
+        contextField.clearFocus()
+        Toast.makeText(this, R.string.context_saved, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Only meaningful while the bubble is up; starting it here would surprise. */
+    private fun pushSettingsToBubble() {
+        if (isServiceRunning()) OverlayService.refresh(this)
     }
 
     private fun markGranted(button: Button, granted: Boolean) {

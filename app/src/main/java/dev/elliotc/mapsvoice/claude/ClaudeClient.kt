@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 class ClaudeClient(
     private val apiKey: () -> String,
     private val workspaceId: () -> String = { "" },
+    private val personalContext: () -> String = { "" },
     private val model: String = DEFAULT_MODEL,
     private val systemPrompt: String = DRIVING_SYSTEM_PROMPT,
     private val http: OkHttpClient = defaultHttpClient()
@@ -37,7 +38,7 @@ class ClaudeClient(
             val body = JSONObject()
                 .put("model", model)
                 .put("max_tokens", MAX_TOKENS)
-                .put("system", systemPrompt)
+                .put("system", systemPromptWith(personalContext()))
                 // Thinking costs seconds of silence in a conversation the driver
                 // is waiting on out loud, and these are short factual answers.
                 .put("thinking", JSONObject().put("type", "disabled"))
@@ -69,6 +70,18 @@ class ClaudeClient(
             } catch (e: Exception) {
                 Result.Failure("Couldn't reach Claude: ${e.message ?: "network error"}")
             }
+        }
+
+    /**
+     * The driving instructions, plus whatever the driver pasted into "About
+     * me" — typically an export of their Claude memory, which the API cannot
+     * read on its own.
+     */
+    private fun systemPromptWith(context: String): String =
+        if (context.isBlank()) {
+            systemPrompt
+        } else {
+            systemPrompt + "\n\nAbout the person you are talking to:\n" + context
         }
 
     private fun parseReply(payload: String): Result {
