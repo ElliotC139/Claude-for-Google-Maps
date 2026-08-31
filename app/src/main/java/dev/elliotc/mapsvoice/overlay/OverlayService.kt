@@ -32,6 +32,7 @@ import dev.elliotc.mapsvoice.claude.ConversationState
 import dev.elliotc.mapsvoice.data.ConversationLog
 import dev.elliotc.mapsvoice.data.ForegroundAppWatcher
 import dev.elliotc.mapsvoice.data.Settings
+import dev.elliotc.mapsvoice.voice.AudioFocusHolder
 import dev.elliotc.mapsvoice.voice.SpeechListener
 import dev.elliotc.mapsvoice.voice.TextToSpeechManager
 import dev.elliotc.mapsvoice.voice.WakeWordListener
@@ -63,6 +64,7 @@ class OverlayService : Service() {
     private lateinit var speech: SpeechListener
     private lateinit var tts: TextToSpeechManager
     private lateinit var wakeWord: WakeWordListener
+    private lateinit var audioFocus: AudioFocusHolder
 
     private val conversation = ConversationState()
     private val claude = ClaudeClient(
@@ -86,6 +88,7 @@ class OverlayService : Service() {
         speech = SpeechListener(this)
         tts = TextToSpeechManager(this)
         wakeWord = WakeWordListener(this)
+        audioFocus = AudioFocusHolder(this)
 
         startForegroundWithNotification()
         addBubble()
@@ -107,6 +110,7 @@ class OverlayService : Service() {
         speech.release()
         tts.release()
         wakeWord.release()
+        audioFocus.release()
         if (::bubble.isInitialized && bubble.isAttachedToWindow) {
             windowManager.removeView(bubble)
         }
@@ -257,6 +261,9 @@ class OverlayService : Service() {
         // The wake word owns the mic while it listens; SpeechRecognizer
         // cannot open it until the wake word lets go.
         wakeWord.stop()
+        // Held for the whole session — question and answer — so music pauses
+        // once rather than stuttering between the two.
+        audioFocus.acquire(onLost = ::cancelSession)
         bubble.state = BubbleView.State.LISTENING
         speech.start(speechCallbacks)
     }
@@ -293,6 +300,7 @@ class OverlayService : Service() {
         requestJob = null
         speech.cancel()
         tts.stop()
+        audioFocus.release()
         bubble.state = BubbleView.State.IDLE
         busy = false
         bubble.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -360,6 +368,8 @@ class OverlayService : Service() {
     private fun speakThenIdle(text: String, state: BubbleView.State) {
         bubble.state = state
         tts.speak(text) {
+            // Only now, once the last word is out, does the music come back.
+            audioFocus.release()
             bubble.state = BubbleView.State.IDLE
             busy = false
             applyWakeWord()

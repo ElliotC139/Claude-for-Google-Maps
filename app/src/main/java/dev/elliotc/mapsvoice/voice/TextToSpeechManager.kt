@@ -37,7 +37,11 @@ class TextToSpeechManager(context: Context) {
         tts.language = Locale.getDefault()
         tts.setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                // Matches the audio-focus request, so the system routes and
+                // mixes both the same way. Navigation-guidance usage is mixed
+                // quietly over music on many car systems, which is the
+                // opposite of what a spoken answer needs.
+                .setUsage(AudioAttributes.USAGE_ASSISTANT)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build()
         )

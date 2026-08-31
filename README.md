@@ -22,6 +22,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
     OverlayService.kt        foreground service, window management, the loop
     BubbleView.kt            the circle and its four state colours
   voice/
+    AudioFocusHolder.kt      pauses other audio for the length of a session
     SpeechListener.kt        SpeechRecognizer wrapper
     TextToSpeechManager.kt   TextToSpeech wrapper
     WakeWordListener.kt      offline wake word (Vosk)
@@ -135,8 +136,17 @@ after ten minutes of silence.
 - **Bottom-left corner.** Clear of the next-turn banner at the top of Maps and
   of the ETA sheet's controls on the right. It is fixed there until Phase 2
   makes it draggable.
-- **TTS uses `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE`**, so it routes the same
-  way Maps' own guidance does on a car stereo.
+- **Audio focus is held for the whole session**, from the moment the mic opens
+  to the last word of the reply, so music and podcasts pause once rather than
+  stuttering between the question and the answer. Requested as a transient
+  *gain* rather than "may duck": ducked audio keeps playing underneath, and a
+  quiet reply competing with a podcast is the problem being solved. Losing
+  focus — an incoming call, say — cancels the session rather than talking into
+  it. The wake word never holds focus; it listens for minutes at a time.
+- **TTS and the focus request both use `USAGE_ASSISTANT`**, so the system
+  routes and mixes them the same way. Navigation-guidance usage is mixed
+  quietly over music on many car systems, which is the opposite of what a
+  spoken answer needs.
 
 ## Settings
 
@@ -201,8 +211,13 @@ long-press. Turn it off when you're not driving.
 
 ## Not in this phase
 
-Audio-focus handling, so Claude and Maps don't talk over each other, and
-silence-timeout tuning.
+Silence-timeout tuning.
+
+Note that audio focus pauses *music*; it does not stop Google Maps from
+speaking a turn instruction over an answer. Maps requests focus for its own
+guidance, and an app cannot refuse another app's prompt — that is the system
+working as intended, and the tap-to-cancel gesture is the way out of a
+collision.
 
 Phase 4 — Android Auto, which is the real "designed for driving" surface but
 needs Google's distraction-guidelines review.
