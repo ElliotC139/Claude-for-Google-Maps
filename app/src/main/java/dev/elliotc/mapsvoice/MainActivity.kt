@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contextField: EditText
     private lateinit var sizeSlider: SeekBar
     private lateinit var sizeLabel: TextView
+    private lateinit var apiKeyStatus: TextView
     private lateinit var wakePhrasesField: EditText
     private lateinit var wakeWordSwitch: CheckBox
     private lateinit var onlyDuringMapsSwitch: CheckBox

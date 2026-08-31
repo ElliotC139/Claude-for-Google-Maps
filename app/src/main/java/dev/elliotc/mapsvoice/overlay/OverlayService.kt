@@ -254,8 +254,8 @@ class OverlayService : Service() {
         if (busy) return
         busy = true
         tts.stop()
-        // Porcupine owns the mic while it listens; SpeechRecognizer cannot
-        // open it until Porcupine lets go.
+        // The wake word owns the mic while it listens; SpeechRecognizer
+        // cannot open it until the wake word lets go.
         wakeWord.stop()
         bubble.state = BubbleView.State.LISTENING
         speech.start(speechCallbacks)
@@ -285,6 +285,18 @@ class OverlayService : Service() {
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         )
+    }
+
+    /** Tap-to-cancel: drop the mic, the in-flight request, and the speech. */
+    private fun cancelSession() {
+        requestJob?.cancel()
+        requestJob = null
+        speech.cancel()
+        tts.stop()
+        bubble.state = BubbleView.State.IDLE
+        busy = false
+        bubble.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        applyWakeWord()
     }
 
     /** Whether the Maps gate applies: on, and usable (permission granted). */
