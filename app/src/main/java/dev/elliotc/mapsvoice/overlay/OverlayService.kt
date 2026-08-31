@@ -1,6 +1,5 @@
 package dev.elliotc.mapsvoice.overlay
 
-import ai.picovoice.porcupine.Porcupine
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -270,12 +269,8 @@ class OverlayService : Service() {
             return
         }
 
-        val useCustom = Settings.useCustomKeyword(this) && Settings.hasCustomKeyword(this)
         wakeWord.start(
-            accessKey = ApiKeyStore.picovoiceKey(this),
-            keywordFile = if (useCustom) Settings.customKeywordFile(this) else null,
-            builtInKeyword = builtInKeyword(),
-            sensitivity = Settings.DEFAULT_SENSITIVITY,
+            wakePhrases = Settings.wakePhrases(this),
             onDetected = { beginSession() },
             onError = { message ->
                 // Visible without unlocking the phone, and it does not talk
@@ -283,24 +278,6 @@ class OverlayService : Service() {
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         )
-    }
-
-    private fun builtInKeyword(): Porcupine.BuiltInKeyword = try {
-        Porcupine.BuiltInKeyword.valueOf(Settings.builtInKeyword(this))
-    } catch (e: IllegalArgumentException) {
-        Porcupine.BuiltInKeyword.COMPUTER
-    }
-
-    /** Tap-to-cancel: drop the mic, the in-flight request, and the speech. */
-    private fun cancelSession() {
-        requestJob?.cancel()
-        requestJob = null
-        speech.cancel()
-        tts.stop()
-        bubble.state = BubbleView.State.IDLE
-        busy = false
-        bubble.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        applyWakeWord()
     }
 
     private val speechCallbacks = object : SpeechListener.Callbacks {

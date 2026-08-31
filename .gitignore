@@ -16,5 +16,8 @@ captures/
 *.ap_
 *.dex
 
+# Fetched at build time, not committed (~40 MB)
+app/src/main/assets/model-en-us/
+
 # OS
 .DS_Store

@@ -24,7 +24,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
   voice/
     SpeechListener.kt        SpeechRecognizer wrapper
     TextToSpeechManager.kt   TextToSpeech wrapper
-    WakeWordListener.kt      Porcupine wake word
+    WakeWordListener.kt      offline wake word (Vosk)
   claude/
     ClaudeClient.kt          Messages API call
     ConversationState.kt     rolling context sent to Claude
@@ -154,28 +154,34 @@ On the setup screen, below the permissions:
 
 ## Wake word
 
-Optional; off by default. Uses [Porcupine](https://picovoice.ai/platform/porcupine/),
-which runs entirely on the device — no audio leaves the phone to detect the
-phrase.
+Optional; off by default. Uses [Vosk](https://alphacephei.com/vosk/) — a small
+offline recogniser bundled into the APK. No account, no API key, and no audio
+leaves the phone to detect the phrase.
 
-1. Sign up free at **console.picovoice.ai** and copy your **AccessKey**.
-2. Paste it into the Wake word section and pick a phrase, or train your own
-   (Porcupine → train for **Android**), download the `.ppn`, and **Import**
-   it here.
-3. Tick **Enable wake word** and **Save**.
+Turn it on in the app, adjust the phrases if you like, and Save. The default is:
 
-"Hey Claude" is not one of the built-in phrases, so saying that specifically
-means training a custom `.ppn`. The built-in list deliberately omits "alexa",
-"hey google" and "hey siri" — they would collide with the assistant already on
-the phone.
+```
+hey claude, hey cloud, hey clawed
+```
 
-Porcupine holds the microphone while it listens, and Android will not give the
-same mic to `SpeechRecognizer` at the same time, so the service stops the wake
-word for the length of a question and restarts it afterwards. That handoff is
-why the wake word can't fire while Claude is already listening or speaking.
+Any of those starts a session. The extra spellings are not padding: the small
+model has no "claude" in its vocabulary, so the word comes back as "cloud" or
+"clawed" nearly every time, and matching only the correct spelling would mean
+it almost never fires. Matching is done on partial results, so it triggers as
+you finish saying the phrase rather than a second later.
 
-Listening continuously costs more battery than the long-press, and keeps the
-mic indicator lit. Turn it off when you're not driving.
+The model (~40 MB) is downloaded by CI into `app/src/main/assets/model-en-us`
+at build time rather than committed, so the repo stays small while the APK
+stays self-contained and works offline.
+
+Vosk holds the microphone while it listens, and Android will not give the same
+mic to `SpeechRecognizer` at the same time, so the service stops the wake word
+for the length of a question and restarts it afterwards. That handoff is why
+the wake word can't fire while Claude is already listening or speaking — tap
+the bubble to interrupt instead.
+
+Listening continuously costs noticeably more battery than the long-press and
+keeps the mic indicator lit. Turn it off when you're not driving.
 
 ## Not in this phase
 

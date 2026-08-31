@@ -31,6 +31,16 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
 
+      - name: Fetch the offline wake-word model
+        run: |
+          curl -sSfL -o model.zip \
+            https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q model.zip
+          mkdir -p app/src/main/assets
+          rm -rf app/src/main/assets/model-en-us
+          mv vosk-model-small-en-us-0.15 app/src/main/assets/model-en-us
+          rm model.zip
+
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
 

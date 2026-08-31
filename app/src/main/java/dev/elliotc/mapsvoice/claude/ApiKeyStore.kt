@@ -42,13 +42,6 @@ object ApiKeyStore {
         prefs(context).edit().putString(PREF_WORKSPACE, id.trim()).apply()
     }
 
-    /** Picovoice access key, for the wake word. Free tier, separate account. */
-    fun picovoiceKey(context: Context): String =
-        prefs(context).getString(PREF_PICOVOICE, null)?.trim().orEmpty()
-
-    fun setPicovoiceKey(context: Context, key: String) {
-        prefs(context).edit().putString(PREF_PICOVOICE, key.trim()).apply()
-    }
 
     /** Enough to recognise which key is saved, without showing the whole thing. */
     fun masked(context: Context): String {
@@ -62,6 +55,5 @@ object ApiKeyStore {
     private const val PREFS_NAME = "maps_voice"
     private const val PREF_KEY = "claude_api_key"
     private const val PREF_WORKSPACE = "claude_workspace_id"
-    private const val PREF_PICOVOICE = "picovoice_access_key"
     private const val VISIBLE_CHARS = 6
 }

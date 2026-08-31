@@ -36,15 +36,12 @@
     <string name="context_saved">Saved</string>
 
     <string name="section_wake_word">Wake word</string>
-    <string name="wake_word_help">Say a phrase instead of long-pressing. Needs a free Picovoice account: sign up at console.picovoice.ai, copy your AccessKey below. To say \"Hey Claude\" specifically, train it on that console (Porcupine → train for Android), download the .ppn and import it here.</string>
-    <string name="picovoice_key_hint">Picovoice AccessKey</string>
+    <string name="wake_word_help">Say a phrase instead of long-pressing. Runs entirely on the phone — no account, no key, and no audio leaves the device to detect it.</string>
+    <string name="wake_phrases_hint">hey claude, hey cloud, hey clawed</string>
+    <string name="wake_phrases_help">Any of these, separated by commas, will start a session. The offline recogniser has no \"claude\" in its vocabulary, so it usually hears \"cloud\" or \"clawed\" — keeping those spellings is what makes it fire reliably.</string>
     <string name="wake_word_enable">Enable wake word</string>
-    <string name="import_keyword">Import .ppn file</string>
-    <string name="custom_keyword_in_use">Custom wake word imported. Tap a phrase above to go back to a built-in one.</string>
-    <string name="keyword_imported">Wake word imported</string>
-    <string name="keyword_import_failed">Couldn\'t read that file</string>
     <string name="save_wake_word">Save</string>
-    <string name="wake_word_battery_note">Listening for a wake word keeps the microphone open, which uses more battery than the long-press. Turn it off when you are not driving.</string>
+    <string name="wake_word_battery_note">Listening for a wake word keeps the microphone open and uses noticeably more battery than the long-press. Turn it off when you are not driving.</string>
 
     <string name="history_title">Conversations</string>
     <string name="view_history">View conversations</string>

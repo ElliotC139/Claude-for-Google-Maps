@@ -57,16 +57,12 @@ object Settings {
     // --- Wake word -------------------------------------------------------
 
     /**
-     * Built-ins that won't collide with a real assistant on the phone —
-     * "alexa", "hey google" and "hey siri" are deliberately left out.
+     * Comma-separated phrases, any of which starts a session. The extras are
+     * not redundancy for its own sake: the offline model has no "claude" in
+     * its vocabulary, so the word reliably comes back as "cloud" or "clawed",
+     * and matching only the correct spelling would almost never fire.
      */
-    val BUILT_IN_KEYWORDS = listOf(
-        "COMPUTER", "JARVIS", "PICOVOICE", "BUMBLEBEE",
-        "GRASSHOPPER", "BLUEBERRY", "GRAPEFRUIT", "AMERICANO", "TERMINATOR"
-    )
-
-    const val CUSTOM_KEYWORD_FILE = "wake_word.ppn"
-    const val DEFAULT_SENSITIVITY = 0.6f
+    const val DEFAULT_WAKE_PHRASES = "hey claude, hey cloud, hey clawed"
 
     fun wakeWordEnabled(context: Context): Boolean =
         prefs(context).getBoolean(PREF_WAKE_ENABLED, false)
@@ -75,25 +71,16 @@ object Settings {
         prefs(context).edit().putBoolean(PREF_WAKE_ENABLED, enabled).apply()
     }
 
-    fun builtInKeyword(context: Context): String =
-        prefs(context).getString(PREF_KEYWORD, null) ?: BUILT_IN_KEYWORDS.first()
+    fun wakePhrasesText(context: Context): String =
+        prefs(context).getString(PREF_WAKE_PHRASES, null)?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_WAKE_PHRASES
 
-    fun setBuiltInKeyword(context: Context, keyword: String) {
-        prefs(context).edit().putString(PREF_KEYWORD, keyword).apply()
+    fun setWakePhrasesText(context: Context, text: String) {
+        prefs(context).edit().putString(PREF_WAKE_PHRASES, text.trim()).apply()
     }
 
-    /** True when a custom .ppn has been imported; it takes precedence. */
-    fun useCustomKeyword(context: Context): Boolean =
-        prefs(context).getBoolean(PREF_USE_CUSTOM, false)
-
-    fun setUseCustomKeyword(context: Context, use: Boolean) {
-        prefs(context).edit().putBoolean(PREF_USE_CUSTOM, use).apply()
-    }
-
-    fun customKeywordFile(context: Context): java.io.File =
-        java.io.File(context.applicationContext.filesDir, CUSTOM_KEYWORD_FILE)
-
-    fun hasCustomKeyword(context: Context): Boolean = customKeywordFile(context).exists()
+    fun wakePhrases(context: Context): List<String> =
+        wakePhrasesText(context).split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -104,6 +91,5 @@ object Settings {
     private const val PREF_Y = "bubble_y"
     private const val PREF_CONTEXT = "personal_context"
     private const val PREF_WAKE_ENABLED = "wake_word_enabled"
-    private const val PREF_KEYWORD = "wake_word_keyword"
-    private const val PREF_USE_CUSTOM = "wake_word_custom"
+    private const val PREF_WAKE_PHRASES = "wake_word_phrases"
 }
