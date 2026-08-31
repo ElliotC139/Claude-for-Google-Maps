@@ -29,6 +29,19 @@ object ApiKeyStore {
 
     fun isPresent(context: Context): Boolean = get(context).isNotBlank()
 
+    /**
+     * Optional. A personal or service-account key that isn't scoped to one
+     * workspace must name the workspace on every request, or the API rejects
+     * it with "anthropic-workspace-id is required when authenticating with an
+     * identity-linked API key". A workspace-scoped key needs nothing here.
+     */
+    fun workspaceId(context: Context): String =
+        prefs(context).getString(PREF_WORKSPACE, null)?.trim().orEmpty()
+
+    fun setWorkspaceId(context: Context, id: String) {
+        prefs(context).edit().putString(PREF_WORKSPACE, id.trim()).apply()
+    }
+
     /** Enough to recognise which key is saved, without showing the whole thing. */
     fun masked(context: Context): String {
         val key = get(context)
@@ -40,5 +53,6 @@ object ApiKeyStore {
 
     private const val PREFS_NAME = "maps_voice"
     private const val PREF_KEY = "claude_api_key"
+    private const val PREF_WORKSPACE = "claude_workspace_id"
     private const val VISIBLE_CHARS = 6
 }

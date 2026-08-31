@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
  */
 class ClaudeClient(
     private val apiKey: () -> String,
+    private val workspaceId: () -> String = { "" },
     private val model: String = DEFAULT_MODEL,
     private val systemPrompt: String = DRIVING_SYSTEM_PROMPT,
     private val http: OkHttpClient = defaultHttpClient()
@@ -47,6 +48,13 @@ class ClaudeClient(
                 .addHeader("x-api-key", key)
                 .addHeader("anthropic-version", ANTHROPIC_VERSION)
                 .addHeader("content-type", "application/json")
+                .apply {
+                    // Required for a key that isn't scoped to one workspace.
+                    // An empty value is rejected as an invalid workspace ID,
+                    // so send the header only when there is one.
+                    val workspace = workspaceId()
+                    if (workspace.isNotBlank()) addHeader("anthropic-workspace-id", workspace)
+                }
                 .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
                 .build()
 

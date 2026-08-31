@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serviceButton: Button
     private lateinit var saveKeyButton: Button
     private lateinit var apiKeyField: EditText
+    private lateinit var workspaceField: EditText
     private lateinit var apiKeyStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,13 +43,14 @@ class MainActivity : AppCompatActivity() {
         serviceButton = findViewById(R.id.serviceButton)
         saveKeyButton = findViewById(R.id.saveKeyButton)
         apiKeyField = findViewById(R.id.apiKeyField)
+        workspaceField = findViewById(R.id.workspaceField)
         apiKeyStatus = findViewById(R.id.apiKeyStatus)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
         micButton.setOnClickListener { requestMicPermission() }
         notificationButton.setOnClickListener { requestNotificationPermission() }
         serviceButton.setOnClickListener { toggleService() }
-        saveKeyButton.setOnClickListener { saveApiKey() }
+        saveKeyButton.setOnClickListener { saveCredentials() }
     }
 
     override fun onResume() {
@@ -66,6 +68,10 @@ class MainActivity : AppCompatActivity() {
         markGranted(micButton, hasMic)
         markGranted(notificationButton, hasNotifications)
 
+        if (!workspaceField.hasFocus()) {
+            workspaceField.setText(ApiKeyStore.workspaceId(this))
+        }
+
         apiKeyStatus.text = if (hasApiKey) {
             getString(R.string.key_saved, ApiKeyStore.masked(this))
         } else {
@@ -82,12 +88,24 @@ class MainActivity : AppCompatActivity() {
         button.isEnabled = !granted
     }
 
-    private fun saveApiKey() {
-        val typed = apiKeyField.text.toString().trim()
-        if (typed.isEmpty()) return
-        ApiKeyStore.set(this, typed)
-        apiKeyField.setText("")
+    /**
+     * Saves whichever fields were filled in. The workspace ID is saved on its
+     * own so it can be added later, without re-typing the key.
+     */
+    private fun saveCredentials() {
+        val key = apiKeyField.text.toString().trim()
+        if (key.isNotEmpty()) {
+            ApiKeyStore.set(this, key)
+            apiKeyField.setText("")
+        }
+
+        val workspace = workspaceField.text.toString().trim()
+        if (workspace != ApiKeyStore.workspaceId(this)) {
+            ApiKeyStore.setWorkspaceId(this, workspace)
+        }
+
         apiKeyField.clearFocus()
+        workspaceField.clearFocus()
         Toast.makeText(this, R.string.save_key, Toast.LENGTH_SHORT).show()
         refresh()
     }

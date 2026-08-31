@@ -7,7 +7,9 @@
 
     <string name="step_api_key">1. Your Claude API key</string>
     <string name="api_key_hint">sk-ant-…</string>
-    <string name="save_key">Save key</string>
+    <string name="workspace_hint">Workspace ID (wrkspc_…) — only if asked for</string>
+    <string name="workspace_help">Leave blank unless Claude says "anthropic-workspace-id is required".</string>
+    <string name="save_key">Save</string>
     <string name="key_saved">Key saved (%1$s)</string>
 
     <string name="step_overlay">2. Allow drawing over other apps</string>

@@ -55,7 +55,10 @@ class OverlayService : Service() {
 
     private val conversation = ConversationState()
     // Read on each request, so a key pasted in after the bubble started works.
-    private val claude = ClaudeClient(apiKey = { ApiKeyStore.get(this) })
+    private val claude = ClaudeClient(
+        apiKey = { ApiKeyStore.get(this) },
+        workspaceId = { ApiKeyStore.workspaceId(this) }
+    )
 
     private var busy = false
     private var longPressPending: Runnable? = null

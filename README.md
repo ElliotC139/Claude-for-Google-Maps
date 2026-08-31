@@ -64,6 +64,17 @@ The key is stored in app-private storage on the phone. No other app on a
 non-rooted device can read it, and it survives app updates. It never goes into
 the repo, the build, or the APK.
 
+**Scope the key to a single workspace when you create it.** A personal or
+service-account key that spans workspaces has to name one on every request, and
+the API rejects a request without it:
+
+> `anthropic-workspace-id is required when authenticating with an
+> identity-linked API key; send the id of the workspace this request acts in.`
+
+If you already have such a key, put its workspace ID (`wrkspc_…`, from
+Settings → Workspaces) in the second field and the app will send the header.
+Leave that field blank for a workspace-scoped key.
+
 A build-time key still works if you prefer it — put `CLAUDE_API_KEY=sk-ant-...`
 in `local.properties` locally, or add it as a repository secret and reference
 it in the workflow. The in-app key wins if both are set.
