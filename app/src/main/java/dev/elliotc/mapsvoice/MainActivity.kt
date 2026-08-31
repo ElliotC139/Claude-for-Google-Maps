@@ -8,11 +8,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -36,6 +40,41 @@ class MainActivity : AppCompatActivity() {
     private lateinit var contextField: EditText
     private lateinit var sizeSlider: SeekBar
     private lateinit var sizeLabel: TextView
+    private lateinit var picovoiceField: EditText
+    private lateinit var keywordSpinner: Spinner
+    private lateinit var wakeWordSwitch: CheckBox
+    private lateinit var customKeywordLabel: TextView
+
+    /** Imports a .ppn trained on the Picovoice console into app storage. */
+    private val pickKeywordFile = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val imported = try {
+            val source = contentResolver.openInputStream(uri)
+            if (source == null) {
+                false
+            } else {
+                source.use { input ->
+                    AppSettings.customKeywordFile(this).outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                true
+            }
+        } catch (e: Exception) {
+            false
+        }
+
+        if (imported) {
+            AppSettings.setUseCustomKeyword(this, true)
+            Toast.makeText(this, R.string.keyword_imported, Toast.LENGTH_SHORT).show()
+            pushSettingsToBubble()
+        } else {
+            Toast.makeText(this, R.string.keyword_import_failed, Toast.LENGTH_LONG).show()
+        }
+        refresh()
+    }
     private lateinit var apiKeyStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +91,10 @@ class MainActivity : AppCompatActivity() {
         contextField = findViewById(R.id.contextField)
         sizeSlider = findViewById(R.id.sizeSlider)
         sizeLabel = findViewById(R.id.sizeLabel)
+        picovoiceField = findViewById(R.id.picovoiceField)
+        keywordSpinner = findViewById(R.id.keywordSpinner)
+        wakeWordSwitch = findViewById(R.id.wakeWordSwitch)
+        customKeywordLabel = findViewById(R.id.customKeywordLabel)
         apiKeyStatus = findViewById(R.id.apiKeyStatus)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
@@ -65,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.resetPositionButton).setOnClickListener { resetBubblePosition() }
         setUpSizeSlider()
+        setUpWakeWord()
     }
 
     override fun onResume() {
@@ -88,6 +132,11 @@ class MainActivity : AppCompatActivity() {
         if (!contextField.hasFocus()) {
             contextField.setText(AppSettings.personalContext(this))
         }
+
+        wakeWordSwitch.isChecked = AppSettings.wakeWordEnabled(this)
+        wakeWordSwitch.isEnabled = ApiKeyStore.picovoiceKey(this).isNotBlank()
+        val usingCustom = AppSettings.useCustomKeyword(this) && AppSettings.hasCustomKeyword(this)
+        customKeywordLabel.visibility = if (usingCustom) TextView.VISIBLE else TextView.GONE
 
         apiKeyStatus.text = if (hasApiKey) {
             getString(R.string.key_saved, ApiKeyStore.masked(this))
@@ -118,6 +167,45 @@ class MainActivity : AppCompatActivity() {
                 pushSettingsToBubble()
             }
         })
+    }
+
+    private fun setUpWakeWord() {
+        keywordSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            AppSettings.BUILT_IN_KEYWORDS.map { it.lowercase().replace('_', ' ') }
+        )
+
+        val saved = AppSettings.BUILT_IN_KEYWORDS.indexOf(AppSettings.builtInKeyword(this))
+        if (saved >= 0) keywordSpinner.setSelection(saved)
+
+        findViewById<Button>(R.id.importKeywordButton).setOnClickListener {
+            // .ppn has no registered MIME type, so accept anything and let the
+            // import fail loudly if the file is wrong.
+            pickKeywordFile.launch(arrayOf("*/*"))
+        }
+        findViewById<Button>(R.id.saveWakeWordButton).setOnClickListener { saveWakeWord() }
+    }
+
+    private fun saveWakeWord() {
+        val key = picovoiceField.text.toString().trim()
+        if (key.isNotEmpty()) {
+            ApiKeyStore.setPicovoiceKey(this, key)
+            picovoiceField.setText("")
+        }
+
+        val chosen = AppSettings.BUILT_IN_KEYWORDS.getOrNull(keywordSpinner.selectedItemPosition)
+        if (chosen != null && chosen != AppSettings.builtInKeyword(this)) {
+            AppSettings.setBuiltInKeyword(this, chosen)
+            // Picking from the list means going back to a built-in phrase.
+            AppSettings.setUseCustomKeyword(this, false)
+        }
+
+        AppSettings.setWakeWordEnabled(this, wakeWordSwitch.isChecked)
+        picovoiceField.clearFocus()
+        Toast.makeText(this, R.string.context_saved, Toast.LENGTH_SHORT).show()
+        pushSettingsToBubble()
+        refresh()
     }
 
     private fun showSize(dp: Int) {

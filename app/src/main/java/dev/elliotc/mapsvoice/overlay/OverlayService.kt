@@ -1,5 +1,6 @@
 package dev.elliotc.mapsvoice.overlay
 
+import ai.picovoice.porcupine.Porcupine
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -21,6 +22,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import dev.elliotc.mapsvoice.MainActivity
@@ -32,6 +34,7 @@ import dev.elliotc.mapsvoice.data.ConversationLog
 import dev.elliotc.mapsvoice.data.Settings
 import dev.elliotc.mapsvoice.voice.SpeechListener
 import dev.elliotc.mapsvoice.voice.TextToSpeechManager
+import dev.elliotc.mapsvoice.voice.WakeWordListener
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +62,7 @@ class OverlayService : Service() {
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var speech: SpeechListener
     private lateinit var tts: TextToSpeechManager
+    private lateinit var wakeWord: WakeWordListener
 
     private val conversation = ConversationState()
     private val claude = ClaudeClient(
@@ -78,13 +82,18 @@ class OverlayService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         speech = SpeechListener(this)
         tts = TextToSpeechManager(this)
+        wakeWord = WakeWordListener(this)
 
         startForegroundWithNotification()
         addBubble()
+        applyWakeWord()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_REFRESH) applyAppearance()
+        if (intent?.action == ACTION_REFRESH) {
+            applyAppearance()
+            applyWakeWord()
+        }
         return START_STICKY
     }
 
@@ -93,6 +102,7 @@ class OverlayService : Service() {
         scope.cancel()
         speech.release()
         tts.release()
+        wakeWord.release()
         if (::bubble.isInitialized && bubble.isAttachedToWindow) {
             windowManager.removeView(bubble)
         }
@@ -240,8 +250,45 @@ class OverlayService : Service() {
         if (busy) return
         busy = true
         tts.stop()
+        // Porcupine owns the mic while it listens; SpeechRecognizer cannot
+        // open it until Porcupine lets go.
+        wakeWord.stop()
         bubble.state = BubbleView.State.LISTENING
         speech.start(speechCallbacks)
+    }
+
+    /**
+     * Starts or stops wake-word listening to match the current settings.
+     * Called whenever the service returns to idle, and when settings change.
+     */
+    private fun applyWakeWord() {
+        if (!::wakeWord.isInitialized) return
+
+        val enabled = Settings.wakeWordEnabled(this) && !busy
+        if (!enabled) {
+            wakeWord.stop()
+            return
+        }
+
+        val useCustom = Settings.useCustomKeyword(this) && Settings.hasCustomKeyword(this)
+        wakeWord.start(
+            accessKey = ApiKeyStore.picovoiceKey(this),
+            keywordFile = if (useCustom) Settings.customKeywordFile(this) else null,
+            builtInKeyword = builtInKeyword(),
+            sensitivity = Settings.DEFAULT_SENSITIVITY,
+            onDetected = { beginSession() },
+            onError = { message ->
+                // Visible without unlocking the phone, and it does not talk
+                // over navigation the way a spoken error would.
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        )
+    }
+
+    private fun builtInKeyword(): Porcupine.BuiltInKeyword = try {
+        Porcupine.BuiltInKeyword.valueOf(Settings.builtInKeyword(this))
+    } catch (e: IllegalArgumentException) {
+        Porcupine.BuiltInKeyword.COMPUTER
     }
 
     /** Tap-to-cancel: drop the mic, the in-flight request, and the speech. */
@@ -253,6 +300,7 @@ class OverlayService : Service() {
         bubble.state = BubbleView.State.IDLE
         busy = false
         bubble.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        applyWakeWord()
     }
 
     private val speechCallbacks = object : SpeechListener.Callbacks {
@@ -287,6 +335,7 @@ class OverlayService : Service() {
         tts.speak(text) {
             bubble.state = BubbleView.State.IDLE
             busy = false
+            applyWakeWord()
         }
     }
 

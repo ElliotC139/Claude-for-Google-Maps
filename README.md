@@ -24,6 +24,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
   voice/
     SpeechListener.kt        SpeechRecognizer wrapper
     TextToSpeechManager.kt   TextToSpeech wrapper
+    WakeWordListener.kt      Porcupine wake word
   claude/
     ClaudeClient.kt          Messages API call
     ConversationState.kt     rolling context sent to Claude
@@ -151,12 +152,35 @@ On the setup screen, below the permissions:
   Stored as JSON lines in app-private storage, trimmed to the newest 1000 once
   the file passes 1 MB.
 
+## Wake word
+
+Optional; off by default. Uses [Porcupine](https://picovoice.ai/platform/porcupine/),
+which runs entirely on the device — no audio leaves the phone to detect the
+phrase.
+
+1. Sign up free at **console.picovoice.ai** and copy your **AccessKey**.
+2. Paste it into the Wake word section and pick a phrase, or train your own
+   (Porcupine → train for **Android**), download the `.ppn`, and **Import**
+   it here.
+3. Tick **Enable wake word** and **Save**.
+
+"Hey Claude" is not one of the built-in phrases, so saying that specifically
+means training a custom `.ppn`. The built-in list deliberately omits "alexa",
+"hey google" and "hey siri" — they would collide with the assistant already on
+the phone.
+
+Porcupine holds the microphone while it listens, and Android will not give the
+same mic to `SpeechRecognizer` at the same time, so the service stops the wake
+word for the length of a question and restarts it afterwards. That handoff is
+why the wake word can't fire while Claude is already listening or speaking.
+
+Listening continuously costs more battery than the long-press, and keeps the
+mic indicator lit. Turn it off when you're not driving.
+
 ## Not in this phase
 
-Phase 2 — audio-focus handling, so Claude and Maps don't talk over each other,
-and silence-timeout tuning.
-
-Phase 3 — a wake word instead of the long-press.
+Audio-focus handling, so Claude and Maps don't talk over each other, and
+silence-timeout tuning.
 
 Phase 4 — Android Auto, which is the real "designed for driving" surface but
 needs Google's distraction-guidelines review.
