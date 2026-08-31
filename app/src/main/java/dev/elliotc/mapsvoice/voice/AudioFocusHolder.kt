@@ -26,18 +26,25 @@ class AudioFocusHolder(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var request: AudioFocusRequest? = null
     private var onLost: (() -> Unit)? = null
+    private var acquiredAt = 0L
 
     val isHeld: Boolean
         get() = request != null
 
     /**
-     * @param onLost called when something more important takes the audio —
+     * @param onLost called only when the audio is taken away *permanently* —
      *   an incoming call, say — so the session can bow out rather than talk
      *   into it.
+     *
+     *   Transient loss is deliberately ignored. Android's speech recogniser
+     *   requests focus itself the moment it opens the microphone, which reads
+     *   as a transient loss here; treating that as "something took over" made
+     *   every session cancel itself before it recorded anything.
      */
     fun acquire(onLost: () -> Unit): Boolean {
         if (isHeld) return true
         this.onLost = onLost
+        acquiredAt = System.currentTimeMillis()
 
         val attributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ASSISTANT)
@@ -68,15 +75,24 @@ class AudioFocusHolder(context: Context) {
     }
 
     private val focusChangeListener = AudioManager.OnAudioFocusChangeListener { change ->
-        when (change) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                val callback = onLost
-                release()
-                callback?.invoke()
-            }
-            // Ducking means something is mixing over us, not taking over.
-            else -> Unit
+        // Only a permanent loss means someone else has really taken over.
+        // Transient loss and ducking are both normal mid-session — not least
+        // from our own recogniser opening the mic.
+        if (change != AudioManager.AUDIOFOCUS_LOSS) return@OnAudioFocusChangeListener
+
+        // A loss in the first moments is the session's own machinery starting
+        // up, not a phone call. Ignoring it costs nothing; acting on it kills
+        // the session that just began.
+        if (System.currentTimeMillis() - acquiredAt < SETTLING_MILLIS) {
+            return@OnAudioFocusChangeListener
         }
+
+        val callback = onLost
+        release()
+        callback?.invoke()
+    }
+
+    private companion object {
+        const val SETTLING_MILLIS = 2000L
     }
 }

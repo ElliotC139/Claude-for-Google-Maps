@@ -30,6 +30,7 @@ import dev.elliotc.mapsvoice.claude.ApiKeyStore
 import dev.elliotc.mapsvoice.claude.ClaudeClient
 import dev.elliotc.mapsvoice.claude.ConversationState
 import dev.elliotc.mapsvoice.data.ConversationLog
+import dev.elliotc.mapsvoice.data.Diagnostics
 import dev.elliotc.mapsvoice.data.ForegroundAppWatcher
 import dev.elliotc.mapsvoice.data.Settings
 import dev.elliotc.mapsvoice.voice.AudioFocusHolder
@@ -37,6 +38,7 @@ import dev.elliotc.mapsvoice.voice.SpeechListener
 import dev.elliotc.mapsvoice.voice.TextToSpeechManager
 import dev.elliotc.mapsvoice.voice.WakeWordListener
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,6 +63,7 @@ class OverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var bubble: BubbleView
     private lateinit var params: WindowManager.LayoutParams
+    private var dismissTarget: DismissTargetView? = null
     private lateinit var speech: SpeechListener
     private lateinit var tts: TextToSpeechManager
     private lateinit var wakeWord: WakeWordListener
@@ -111,6 +114,7 @@ class OverlayService : Service() {
         tts.release()
         wakeWord.release()
         audioFocus.release()
+        hideDismissTarget()
         if (::bubble.isInitialized && bubble.isAttachedToWindow) {
             windowManager.removeView(bubble)
         }
@@ -192,18 +196,29 @@ class OverlayService : Service() {
                         // A drag was intended, not a press.
                         dragging = true
                         cancelLongPress()
+                        showDismissTarget()
                     }
                     if (dragging && !longPressFired) {
                         params.x = startX + dx.toInt()
                         params.y = startY + dy.toInt()
                         clampToScreen()
                         windowManager.updateViewLayout(bubble, params)
+                        dismissTarget?.armed = isOverDismissTarget()
                     }
                     return true
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     cancelLongPress()
+                    val dropped = dragging && isOverDismissTarget()
+                    hideDismissTarget()
+
+                    if (dropped) {
+                        Diagnostics.record(this@OverlayService, "dragged to dismiss")
+                        stopSelf()
+                        return true
+                    }
+
                     when {
                         dragging -> Settings.setPosition(
                             this@OverlayService,
@@ -238,6 +253,49 @@ class OverlayService : Service() {
         longPressPending = null
     }
 
+    // --- Drag to dismiss --------------------------------------------------
+
+    private fun showDismissTarget() {
+        if (dismissTarget != null) return
+
+        val size = dp(DISMISS_SIZE_DP)
+        val view = DismissTargetView(this)
+        val targetParams = WindowManager.LayoutParams(
+            size,
+            size,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(DISMISS_BOTTOM_MARGIN_DP)
+        }
+
+        windowManager.addView(view, targetParams)
+        dismissTarget = view
+    }
+
+    private fun hideDismissTarget() {
+        val view = dismissTarget ?: return
+        dismissTarget = null
+        if (view.isAttachedToWindow) windowManager.removeView(view)
+    }
+
+    /** Measured centre-to-centre, so the bubble's own size doesn't matter. */
+    private fun isOverDismissTarget(): Boolean {
+        val targetSize = dp(DISMISS_SIZE_DP)
+        val targetCentreX = screenWidth() / 2f
+        val targetCentreY =
+            screenHeight() - dp(DISMISS_BOTTOM_MARGIN_DP) - targetSize / 2f
+
+        val bubbleCentreX = params.x + params.width / 2f
+        val bubbleCentreY = params.y + params.height / 2f
+
+        return hypot(bubbleCentreX - targetCentreX, bubbleCentreY - targetCentreY) <
+            targetSize * DISMISS_REACH
+    }
+
     private fun clampToScreen() {
         val size = params.width
         params.x = params.x.coerceIn(0, (screenWidth() - size).coerceAtLeast(0))
@@ -257,15 +315,27 @@ class OverlayService : Service() {
     private fun beginSession() {
         if (busy) return
         busy = true
+        Diagnostics.record(this, "session started")
+
         tts.stop()
         // The wake word owns the mic while it listens; SpeechRecognizer
         // cannot open it until the wake word lets go.
         wakeWord.stop()
         // Held for the whole session — question and answer — so music pauses
         // once rather than stuttering between the two.
-        audioFocus.acquire(onLost = ::cancelSession)
+        audioFocus.acquire(onLost = ::onAudioTakenOver)
         bubble.state = BubbleView.State.LISTENING
-        speech.start(speechCallbacks)
+
+        // The wake word's recorder is not released the instant stop() returns,
+        // and SpeechRecognizer opening onto a still-busy mic fails silently.
+        mainHandler.postDelayed({
+            if (busy) speech.start(speechCallbacks)
+        }, MIC_HANDOFF_MILLIS)
+    }
+
+    private fun onAudioTakenOver() {
+        Diagnostics.record(this, "audio taken over — session cancelled")
+        cancelSession()
     }
 
     /**
@@ -283,10 +353,15 @@ class OverlayService : Service() {
             return
         }
 
+        Diagnostics.record(this, "wake word listening")
         wakeWord.start(
             wakePhrases = Settings.wakePhrases(this),
-            onDetected = { beginSession() },
+            onDetected = {
+                Diagnostics.record(this, "wake word heard")
+                beginSession()
+            },
             onError = { message ->
+                Diagnostics.record(this, "wake word: $message")
                 // Visible without unlocking the phone, and it does not talk
                 // over navigation the way a spoken error would.
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
@@ -340,10 +415,12 @@ class OverlayService : Service() {
 
     private val speechCallbacks = object : SpeechListener.Callbacks {
         override fun onListening() {
+            Diagnostics.record(this@OverlayService, "microphone open")
             bubble.state = BubbleView.State.LISTENING
         }
 
         override fun onTranscript(text: String) {
+            Diagnostics.record(this@OverlayService, "heard: $text")
             bubble.state = BubbleView.State.THINKING
             requestJob = scope.launch {
                 when (val result = claude.send(text, conversation)) {
@@ -353,14 +430,17 @@ class OverlayService : Service() {
                         speakThenIdle(result.text, BubbleView.State.SPEAKING)
                     }
 
-                    is ClaudeClient.Result.Failure ->
+                    is ClaudeClient.Result.Failure -> {
+                        Diagnostics.record(this@OverlayService, "Claude: ${result.message}")
                         speakThenIdle(result.message, BubbleView.State.ERROR)
+                    }
                 }
                 requestJob = null
             }
         }
 
         override fun onSpeechError(message: String) {
+            Diagnostics.record(this@OverlayService, "speech error: $message")
             speakThenIdle(message, BubbleView.State.ERROR)
         }
     }
@@ -421,6 +501,12 @@ class OverlayService : Service() {
         private const val BUBBLE_MARGIN_DP = 12f
         private const val ACTION_REFRESH = "dev.elliotc.mapsvoice.REFRESH"
         private const val MAPS_POLL_MILLIS = 5_000L
+        private const val MIC_HANDOFF_MILLIS = 350L
+        private const val DISMISS_SIZE_DP = 64f
+        private const val DISMISS_BOTTOM_MARGIN_DP = 72f
+
+        /** Generous: this is aimed at with a thumb, often without looking. */
+        private const val DISMISS_REACH = 0.9f
 
         fun canDrawOverlay(context: Context): Boolean = AndroidSettings.canDrawOverlays(context)
 

@@ -21,6 +21,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
   overlay/
     OverlayService.kt        foreground service, window management, the loop
     BubbleView.kt            the circle and its four state colours
+    DismissTargetView.kt     the drop-here-to-turn-off target
   voice/
     AudioFocusHolder.kt      pauses other audio for the length of a session
     SpeechListener.kt        SpeechRecognizer wrapper
@@ -31,6 +32,7 @@ app/src/main/java/dev/elliotc/mapsvoice/
     ConversationState.kt     rolling context sent to Claude
     ApiKeyStore.kt           the key, kept in app-private storage
   data/
+    Diagnostics.kt           a readable trace of what the service last did
     Settings.kt              bubble size, position, personal context
     ConversationLog.kt       durable transcript on disk
     ForegroundAppWatcher.kt  is Maps on screen?
@@ -99,7 +101,8 @@ key into the app, then Run. JDK 17, `compileSdk 34`.
 - **Tap it** to cancel — stops the mic, drops an in-flight request, and cuts a
   reply off mid-sentence. A tap while idle does nothing, so a knock can't
   trigger anything.
-- **Drag it** anywhere; the position is remembered.
+- **Drag it** anywhere; the position is remembered. Drag it to the ✕ at the
+  bottom of the screen to turn the bubble off.
 - **Speak, then stop.** The recogniser ends the utterance on ~1.5s of silence;
   there is nothing to release.
 - **The reply is spoken.** The system prompt keeps answers to one or two
@@ -147,6 +150,14 @@ after ten minutes of silence.
   routes and mixes them the same way. Navigation-guidance usage is mixed
   quietly over music on many car systems, which is the opposite of what a
   spoken answer needs.
+
+## When something doesn't work
+
+The **Diagnostics** section of the app shows what the service last did —
+session started, microphone open, what it heard, what came back. The bubble is
+colour-only by design, which is right while driving and useless while
+debugging; this is how to see where a session actually stopped. Share exports
+it as plain text.
 
 ## Settings
 

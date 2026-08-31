@@ -49,6 +49,12 @@
 
     <string name="wake_word_battery_note">Listening for a wake word keeps the microphone open and uses noticeably more battery than the long-press. Turn it off when you are not driving.</string>
 
+    <string name="section_diagnostics">Diagnostics</string>
+    <string name="diagnostics_help">What the bubble last did. If something isn\'t working, this says where it stopped.</string>
+    <string name="diagnostics_empty">Nothing logged yet.</string>
+    <string name="share_diagnostics">Share</string>
+    <string name="clear_diagnostics">Clear</string>
+
     <string name="history_title">Conversations</string>
     <string name="view_history">View conversations</string>
     <string name="share_history">Share</string>

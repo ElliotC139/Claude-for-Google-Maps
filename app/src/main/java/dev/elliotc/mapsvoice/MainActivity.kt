@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import dev.elliotc.mapsvoice.claude.ApiKeyStore
+import dev.elliotc.mapsvoice.data.Diagnostics
 import dev.elliotc.mapsvoice.data.ForegroundAppWatcher
 import dev.elliotc.mapsvoice.data.Settings as AppSettings
 import dev.elliotc.mapsvoice.overlay.OverlayService
@@ -39,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sizeSlider: SeekBar
     private lateinit var sizeLabel: TextView
     private lateinit var apiKeyStatus: TextView
+    private lateinit var diagnosticsText: TextView
     private lateinit var wakePhrasesField: EditText
     private lateinit var wakeWordSwitch: CheckBox
     private lateinit var onlyDuringMapsSwitch: CheckBox
@@ -65,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         usageAccessStatus = findViewById(R.id.usageAccessStatus)
         usageAccessButton = findViewById(R.id.usageAccessButton)
         apiKeyStatus = findViewById(R.id.apiKeyStatus)
+        diagnosticsText = findViewById(R.id.diagnosticsText)
 
         overlayButton.setOnClickListener { requestOverlayPermission() }
         micButton.setOnClickListener { requestMicPermission() }
@@ -76,6 +79,11 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, HistoryActivity::class.java))
         }
         findViewById<Button>(R.id.resetPositionButton).setOnClickListener { resetBubblePosition() }
+        findViewById<Button>(R.id.shareDiagnosticsButton).setOnClickListener { shareDiagnostics() }
+        findViewById<Button>(R.id.clearDiagnosticsButton).setOnClickListener {
+            Diagnostics.clear(this)
+            refresh()
+        }
         setUpSizeSlider()
         setUpWakeWord()
     }
@@ -121,6 +129,9 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.missing_api_key)
         }
 
+        val log = Diagnostics.asText(this)
+        diagnosticsText.text = log.ifBlank { getString(R.string.diagnostics_empty) }
+
         val running = isServiceRunning()
         serviceButton.setText(if (running) R.string.stop_bubble else R.string.start_bubble)
         serviceButton.isEnabled = running || (hasOverlay && hasMic && hasApiKey)
@@ -144,6 +155,19 @@ class MainActivity : AppCompatActivity() {
                 pushSettingsToBubble()
             }
         })
+    }
+
+    private fun shareDiagnostics() {
+        val text = Diagnostics.asText(this)
+        if (text.isBlank()) return
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, text),
+                getString(R.string.share_diagnostics)
+            )
+        )
     }
 
     private fun setUpWakeWord() {
